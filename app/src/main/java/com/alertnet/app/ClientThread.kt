@@ -4,7 +4,11 @@ import android.util.Log
 import java.io.PrintWriter
 import java.net.Socket
 
-class ClientThread(private val host: String, private val message: String) : Thread() {
+class ClientThread(
+    private val host: String,
+    private val message: String,
+    private val onSuccess: (() -> Unit)? = null
+) : Thread() {
 
     override fun run() {
         try {
@@ -17,6 +21,8 @@ class ClientThread(private val host: String, private val message: String) : Thre
 
             writer.close()
             socket.close()
+
+            onSuccess?.invoke()
 
         } catch (e: Exception) {
             Log.e("CLIENT", e.toString())
