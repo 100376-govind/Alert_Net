@@ -12,7 +12,8 @@ fun Message.toEntity(): MessageEntity {
         timestamp = timestamp,
         status = status.name,
         retryCount = retryCount,
-        lastAttemptTime = lastAttemptTime
+        lastAttemptTime = lastAttemptTime,
+        ttl = ttl
     )
 }
 
@@ -25,6 +26,7 @@ fun MessageEntity.toModel(): Message {
         timestamp = timestamp,
         status = MessageStatus.valueOf(status),
         lastAttemptTime = lastAttemptTime,
-        retryCount = retryCount
+        retryCount = retryCount,
+        ttl = ttl
     )
 }

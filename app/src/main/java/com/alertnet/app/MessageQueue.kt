@@ -29,6 +29,15 @@ object MessageQueue {
     }
 
     @Synchronized
+    fun addForwardMessage(message: Message) {
+        message.status = MessageStatus.PENDING
+        pendingMessages.add(message)
+        outgoingQueue.add(message)
+        DatabaseProvider.db.messageDao().insertMessage(message.toEntity())
+        Log.d("MessageQueue", "Forwarding message ${message.id} | ttl=${message.ttl} outgoing=${outgoingQueue.size}")
+    }
+
+    @Synchronized
     fun markAsSent(messageId: String) {
         val msg = pendingMessages.find { it.id == messageId }
         msg?.status = MessageStatus.SENT

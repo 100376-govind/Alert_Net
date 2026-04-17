@@ -16,5 +16,6 @@ data class Message(
     var timestamp: Long = System.currentTimeMillis(),
     var status: MessageStatus = MessageStatus.PENDING,
     var lastAttemptTime: Long = System.currentTimeMillis(),
-    var retryCount: Int = 0
+    var retryCount: Int = 0,
+    var ttl: Int = 5
 )

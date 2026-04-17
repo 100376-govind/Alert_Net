@@ -85,7 +85,9 @@ class WiFiDirectReceiver(
         var success = false
         val latch = java.util.concurrent.CountDownLatch(1)
 
-        ClientThread(target, message.payload,
+        val serialized = MessageSerializer.serialize(message)
+
+        ClientThread(target, serialized,
             onSuccess = {
                 success = true
                 latch.countDown()

@@ -13,6 +13,8 @@ object DatabaseProvider {
             context.applicationContext,
             AppDatabase::class.java,
             "alertnet-db"
-        ).allowMainThreadQueries().build()
+        ).allowMainThreadQueries()
+         .fallbackToDestructiveMigration()
+         .build()
     }
 }

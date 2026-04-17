@@ -12,5 +12,6 @@ data class MessageEntity(
     val timestamp: Long,
     val status: String,
     val retryCount: Int,
-    val lastAttemptTime: Long
+    val lastAttemptTime: Long,
+    val ttl: Int
 )
