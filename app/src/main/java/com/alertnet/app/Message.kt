@@ -4,7 +4,8 @@ import java.util.UUID
 
 enum class MessageStatus {
     PENDING,
-    SENT
+    SENT,
+    FAILED
 }
 
 data class Message(
@@ -13,5 +14,7 @@ data class Message(
     val receiverId: String?,
     val payload: String,
     var timestamp: Long = System.currentTimeMillis(),
-    var status: MessageStatus = MessageStatus.PENDING
+    var status: MessageStatus = MessageStatus.PENDING,
+    var lastAttemptTime: Long = System.currentTimeMillis(),
+    var retryCount: Int = 0
 )

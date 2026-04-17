@@ -7,7 +7,8 @@ import java.net.Socket
 class ClientThread(
     private val host: String,
     private val message: String,
-    private val onSuccess: (() -> Unit)? = null
+    private val onSuccess: (() -> Unit)? = null,
+    private val onFailure: (() -> Unit)? = null
 ) : Thread() {
 
     override fun run() {
@@ -26,6 +27,7 @@ class ClientThread(
 
         } catch (e: Exception) {
             Log.e("CLIENT", e.toString())
+            onFailure?.invoke()
         }
     }
 }

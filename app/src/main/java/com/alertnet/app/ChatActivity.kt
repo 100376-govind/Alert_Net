@@ -71,13 +71,39 @@ class ChatActivity : AppCompatActivity() {
 
             messages.add("Me: $msg")
             adapter.notifyDataSetChanged()
-
-            // Send over socket, mark as SENT on success
-            ClientThread(targetIP, msg) {
-                MessageQueue.markAsSent(outgoing.id)
-            }.start()
-
             messageBox.setText("")
+
+            // Attempt send on a background thread
+            Thread {
+                MessageQueue.attemptSend(outgoing) { message ->
+                    sendMessageOverSocket(message)
+                }
+            }.start()
         }
+    }
+
+    /**
+     * Synchronous send wrapper around ClientThread.
+     * Returns true if socket write succeeds, false otherwise.
+     * Must be called from a background thread.
+     */
+    private fun sendMessageOverSocket(message: Message): Boolean {
+        val target = message.receiverId ?: return false
+        var success = false
+        val latch = java.util.concurrent.CountDownLatch(1)
+
+        ClientThread(target, message.payload,
+            onSuccess = {
+                success = true
+                latch.countDown()
+            },
+            onFailure = {
+                success = false
+                latch.countDown()
+            }
+        ).start()
+
+        latch.await()
+        return success
     }
 }

@@ -58,6 +58,13 @@ class WiFiDirectReceiver(
 
                             Log.d("WIFI_DEBUG", "Host: $hostAddress")
 
+                            // Retry pending messages on new connection
+                            Thread {
+                                MessageQueue.retryPendingMessages { message ->
+                                    sendMessageOverSocket(message, hostAddress)
+                                }
+                            }.start()
+
                             // 🔥 THIS IS THE FIX
                             activity.runOnUiThread {
                                 activity.onConnectionInfoAvailable(hostAddress)
@@ -67,5 +74,29 @@ class WiFiDirectReceiver(
                 }
             }
         }
+    }
+
+    /**
+     * Synchronous send wrapper for retry logic.
+     * Uses hostAddress as the target since we know the connected peer.
+     */
+    private fun sendMessageOverSocket(message: Message, hostAddress: String): Boolean {
+        val target = message.receiverId ?: hostAddress
+        var success = false
+        val latch = java.util.concurrent.CountDownLatch(1)
+
+        ClientThread(target, message.payload,
+            onSuccess = {
+                success = true
+                latch.countDown()
+            },
+            onFailure = {
+                success = false
+                latch.countDown()
+            }
+        ).start()
+
+        latch.await()
+        return success
     }
 }
