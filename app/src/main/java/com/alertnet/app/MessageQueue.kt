@@ -1,6 +1,9 @@
 package com.alertnet.app
 
 import android.util.Log
+import com.alertnet.app.db.DatabaseProvider
+import com.alertnet.app.db.toEntity
+import com.alertnet.app.db.toModel
 
 object MessageQueue {
 
@@ -14,25 +17,31 @@ object MessageQueue {
         message.lastAttemptTime = System.currentTimeMillis()
         pendingMessages.add(message)
         outgoingQueue.add(message)
+        DatabaseProvider.db.messageDao().insertMessage(message.toEntity())
         Log.d("MessageQueue", "Added message ${message.id} | pending=${pendingMessages.size} outgoing=${outgoingQueue.size}")
     }
 
     @Synchronized
     fun addReceivedMessage(message: Message) {
         pendingMessages.add(message)
+        DatabaseProvider.db.messageDao().insertMessage(message.toEntity())
         Log.d("MessageQueue", "Received message ${message.id} | pending=${pendingMessages.size}")
     }
 
     @Synchronized
     fun markAsSent(messageId: String) {
-        pendingMessages.find { it.id == messageId }?.status = MessageStatus.SENT
+        val msg = pendingMessages.find { it.id == messageId }
+        msg?.status = MessageStatus.SENT
         outgoingQueue.removeAll { it.id == messageId }
+        msg?.let { DatabaseProvider.db.messageDao().updateMessage(it.toEntity()) }
         Log.d("MessageQueue", "Marked $messageId as SENT | outgoing=${outgoingQueue.size}")
     }
 
     @Synchronized
     fun markAsFailed(messageId: String) {
-        pendingMessages.find { it.id == messageId }?.status = MessageStatus.FAILED
+        val msg = pendingMessages.find { it.id == messageId }
+        msg?.status = MessageStatus.FAILED
+        msg?.let { DatabaseProvider.db.messageDao().updateMessage(it.toEntity()) }
         Log.d("MessageQueue", "Marked $messageId as FAILED")
     }
 
@@ -58,6 +67,7 @@ object MessageQueue {
             synchronized(this) {
                 message.retryCount++
                 message.lastAttemptTime = System.currentTimeMillis()
+                DatabaseProvider.db.messageDao().updateMessage(message.toEntity())
             }
             Log.d("MessageQueue", "Send failed for ${message.id} | retryCount=${message.retryCount}")
         }
@@ -77,5 +87,25 @@ object MessageQueue {
         for (message in toRetry) {
             attemptSend(message, sendFunction)
         }
+    }
+
+    /**
+     * Rebuild in-memory queues from DB. Call once on app startup after DatabaseProvider.init().
+     */
+    @Synchronized
+    fun rehydrate() {
+        val allFromDb = DatabaseProvider.db.messageDao().getAllMessages().map { it.toModel() }
+
+        pendingMessages.clear()
+        outgoingQueue.clear()
+
+        for (msg in allFromDb) {
+            pendingMessages.add(msg)
+            if (msg.status == MessageStatus.PENDING || msg.status == MessageStatus.FAILED) {
+                outgoingQueue.add(msg)
+            }
+        }
+
+        Log.d("MessageQueue", "Rehydrated | pending=${pendingMessages.size} outgoing=${outgoingQueue.size}")
     }
 }

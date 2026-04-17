@@ -19,6 +19,8 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import com.alertnet.app.db.DatabaseProvider
+import com.alertnet.app.db.SeenMessageStore
 
 
 class MainActivity : Activity() {
@@ -41,6 +43,11 @@ class MainActivity : Activity() {
         Log.d("WIFI_DEBUG", "Receiver initialized")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Initialize database and rehydrate queues
+        DatabaseProvider.init(this)
+        MessageQueue.rehydrate()
+        SeenMessageStore.rehydrate()
 
         ActivityCompat.requestPermissions(
             this,
