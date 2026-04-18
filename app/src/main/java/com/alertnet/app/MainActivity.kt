@@ -1,226 +1,114 @@
 package com.alertnet.app
 
-import android.net.wifi.p2p.WifiP2pConfig
-import android.net.wifi.p2p.*
-import android.content.BroadcastReceiver
-import android.content.IntentFilter
-import android.content.Intent
-import android.util.Log
-import android.widget.ListView
-import android.widget.ArrayAdapter
-import android.app.Activity
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
-import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Bundle
-import android.widget.Button
+import android.util.Log
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
-import com.alertnet.app.db.DatabaseProvider
-import com.alertnet.app.db.SeenMessageStore
+import com.alertnet.app.service.MeshForegroundService
+import com.alertnet.app.ui.navigation.NavGraph
+import com.alertnet.app.ui.theme.AlertNetTheme
+import com.alertnet.app.ui.theme.MeshNavy
 
+/**
+ * Main entry point for AlertNet.
+ *
+ * Handles:
+ * - Runtime permission requests (BLE, WiFi Direct, Location, Notifications)
+ * - Starting the MeshForegroundService
+ * - Hosting the Compose NavGraph
+ */
+class MainActivity : ComponentActivity() {
 
-class MainActivity : Activity() {
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
-    lateinit var receiver: BroadcastReceiver
-    lateinit var intentFilter: IntentFilter
-
-    lateinit var deviceListView: ListView
-    lateinit var adapter: ArrayAdapter<String>
-    val devices = ArrayList<WifiP2pDevice>()
-    val deviceNames = ArrayList<String>()
-
-    private lateinit var manager: WifiP2pManager
-    private lateinit var channel: WifiP2pManager.Channel
-
-    private val PERMISSION_CODE = 101
-
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            Log.d(TAG, "All permissions granted")
+            startMeshService()
+        } else {
+            val denied = permissions.filter { !it.value }.keys
+            Log.w(TAG, "Permissions denied: $denied")
+            Toast.makeText(
+                this,
+                "Some permissions were denied. Mesh may not work properly.",
+                Toast.LENGTH_LONG
+            ).show()
+            // Start anyway — transports will handle missing permissions gracefully
+            startMeshService()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        Log.d("WIFI_DEBUG", "Receiver initialized")
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
-        // Initialize database and rehydrate queues
-        DatabaseProvider.init(this)
-        MessageQueue.rehydrate()
-        SeenMessageStore.rehydrate()
+        requestPermissions()
 
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.NEARBY_WIFI_DEVICES
-            ),
-            100
-        )
+        val app = application as AlertNetApplication
 
-        manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-        channel = manager.initialize(this, mainLooper, null)
-        receiver = WiFiDirectReceiver(manager, channel, this)
-
-        intentFilter = IntentFilter().apply {
-            addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
-            addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
-            addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-            addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-        }
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-
-        val btnDiscover = findViewById<Button>(R.id.btnDiscover)
-
-        deviceListView = findViewById(R.id.deviceList)
-
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, deviceNames)
-        deviceListView.adapter = adapter
-        deviceListView.setOnItemClickListener { _, _, position, _ ->
-            val device = devices[position]
-            connectToDevice(device)
-        }
-
-        btnDiscover.setOnClickListener {
-
-            Toast.makeText(this, "Searching...", Toast.LENGTH_SHORT).show()
-
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Toast.makeText(this, "Permission missing", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    Toast.makeText(this@MainActivity, "Discovery Started", Toast.LENGTH_SHORT).show()
+        setContent {
+            AlertNetTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MeshNavy
+                ) {
+                    NavGraph(app = app)
                 }
-
-                override fun onFailure(reason: Int) {
-                    Toast.makeText(this@MainActivity, "Discovery Failed: $reason", Toast.LENGTH_SHORT).show()
-                }
-            })
-        }
-    }
-    fun connectToDevice(device: WifiP2pDevice) {
-
-        val config = WifiP2pConfig()
-        config.deviceAddress = device.deviceAddress
-
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        manager.connect(channel, config, object : WifiP2pManager.ActionListener {
-            /*override fun onSuccess() {
-                Toast.makeText(this@MainActivity, "Connected!", Toast.LENGTH_SHORT).show()
-            }*/
-            override fun onSuccess() {
-                Toast.makeText(this@MainActivity, "Connected!", Toast.LENGTH_SHORT).show()
             }
-
-            override fun onFailure(reason: Int) {
-                Toast.makeText(this@MainActivity, "Connection Failed: $reason", Toast.LENGTH_SHORT).show()
-            }
-        })
-    }
-
-    fun onConnectionInfoAvailable(host: String) {
-
-        Log.d("WIFI_DEBUG", "ChatActivity should open now")
-
-        runOnUiThread {
-            val intent = Intent(this, ChatActivity::class.java)
-            intent.putExtra("host", host)
-            startActivity(intent)
         }
     }
 
-    override fun onResume() {
-        Log.d("WIFI_DEBUG", "Receiver registered")
-        super.onResume()
-        registerReceiver(receiver, intentFilter)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        unregisterReceiver(receiver)
-    }
-    fun updateDeviceList(peerList: Collection<WifiP2pDevice>) {
-        devices.clear()
-        deviceNames.clear()
-
-        for (device in peerList) {
-            devices.add(device)
-            deviceNames.add(device.deviceName)
-        }
-
-        adapter.notifyDataSetChanged()
-    }
-
-    // 🔐 Check Permissions
-    private fun checkPermissions() {
+    private fun requestPermissions() {
         val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-        }
-
-        ActivityCompat.requestPermissions(this, permissions.toTypedArray(), PERMISSION_CODE)
-    }
-
-    // ✅ Verify Permissions
-    private fun hasPermissions(): Boolean {
-        val location = ActivityCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val wifi = ActivityCompat.checkSelfPermission(
-                this,
+            permissions.addAll(listOf(
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_ADVERTISE,
                 Manifest.permission.NEARBY_WIFI_DEVICES
-            ) == PackageManager.PERMISSION_GRANTED
+            ))
+        }
 
-            location && wifi
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        val needed = permissions.filter {
+            ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (needed.isNotEmpty()) {
+            permissionLauncher.launch(needed.toTypedArray())
         } else {
-            location
+            startMeshService()
         }
     }
 
-    // 🔍 Discover Devices
-    private fun discoverPeers() {
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            Toast.makeText(this, "Permission missing!", Toast.LENGTH_SHORT).show()
-            return
+    private fun startMeshService() {
+        MeshForegroundService.start(this)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isFinishing) {
+            MeshForegroundService.stop(this)
         }
-
-        manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() {
-                Toast.makeText(this@MainActivity, "Discovery Started", Toast.LENGTH_SHORT).show()
-            }
-
-            override fun onFailure(reason: Int) {
-                Toast.makeText(this@MainActivity, "Failed: $reason", Toast.LENGTH_SHORT).show()
-            }
-        })
     }
 }
