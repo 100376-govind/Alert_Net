@@ -145,8 +145,8 @@ fun DeliveryStatusIcon(status: DeliveryStatus) {
     val (icon, tint) = when (status) {
         DeliveryStatus.QUEUED -> Icons.Default.Schedule to StatusPending
         DeliveryStatus.SENDING -> Icons.Default.Sync to StatusSending
-        DeliveryStatus.SENT -> Icons.Default.Check to StatusSent
-        DeliveryStatus.DELIVERED -> Icons.Default.DoneAll to StatusDelivered
+        DeliveryStatus.SENT -> Icons.Default.Check to StatusTickGray
+        DeliveryStatus.DELIVERED -> Icons.Default.DoneAll to StatusTickBlue
         DeliveryStatus.FAILED -> Icons.Default.ErrorOutline to StatusFailed
         DeliveryStatus.EXPIRED -> Icons.Default.TimerOff to StatusPending
     }

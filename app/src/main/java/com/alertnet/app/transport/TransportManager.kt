@@ -48,6 +48,12 @@ class TransportManager(
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /**
+     * Maps old temporary IDs (like MAC addresses) to their new upgraded UUIDs.
+     * This prevents open UI screens from breaking when an identity upgrade happens.
+     */
+    private val deviceIdAliases = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
      * Merged stream of incoming messages from all transports.
      */
     val incomingMessages: SharedFlow<TransportMessage> = merge(
@@ -95,40 +101,52 @@ class TransportManager(
      * 3. If peer reachable via BLE only → use BLE
      * 4. Try both as fallback
      */
-    suspend fun sendToPeer(peerId: String, data: ByteArray): Boolean = coroutineScope {
-        val peer = findPeer(peerId)
+    suspend fun sendToPeer(requestedPeerId: String, data: ByteArray): Boolean = coroutineScope {
+        // Resolve the actual peer ID in case the UI is using an old MAC address
+        val peerId = deviceIdAliases[requestedPeerId] ?: requestedPeerId
+
         val isLargePayload = data.size > BleConstants.MAX_BLE_PAYLOAD
 
         if (isLargePayload) {
-            Log.d(TAG, "Large payload (${data.size} bytes), sending via WiFi Direct")
+            Log.d(TAG, "Large payload (${data.size} bytes), sending via WiFi Direct to $peerId")
             return@coroutineScope wifiDirectTransport.sendMessage(peerId, data)
         }
 
         Log.d(TAG, "Sending ${data.size} bytes to $peerId concurrently via available transports")
 
-        // For small messages, race them concurrently! Fastest transport wins.
-        // This eliminates the 15-second sequential fallback latency.
-        val deferredWifi = async { wifiDirectTransport.sendMessage(peerId, data) }
-        val deferredBle = async { bleTransport.sendMessage(peerId, data) }
-
-        // Wait for WiFi Direct first (since it's much faster if connected)
-        val wifiResult = deferredWifi.await()
-        if (wifiResult) {
-            // WiFi succeeded, no need to wait for BLE (cancel to save battery/overhead)
-            deferredBle.cancel()
-            Log.d(TAG, "Sent successfully via WiFi Direct")
-            return@coroutineScope true
+        // TRUE CONCURRENCY RACE:
+        // We launch both transports simultaneously. The channel collects their results.
+        // The millisecond the first one returns 'true', we cancel the other and return immediately.
+        val resultChannel = kotlinx.coroutines.channels.Channel<Boolean>(2)
+        
+        val wifiJob = launch { 
+            resultChannel.send(wifiDirectTransport.sendMessage(peerId, data)) 
+        }
+        val bleJob = launch { 
+            resultChannel.send(bleTransport.sendMessage(peerId, data)) 
         }
 
-        // If WiFi failed (e.g. IP not resolved), wait for BLE
-        val bleResult = deferredBle.await()
-        if (bleResult) {
-            Log.d(TAG, "Sent successfully via BLE")
-        } else {
+        var finalSuccess = false
+        // Wait for up to 2 results (since we launched 2 jobs)
+        for (i in 0 until 2) {
+            val success = resultChannel.receive()
+            if (success) {
+                finalSuccess = true
+                Log.d(TAG, "Transport race won! Sent successfully to $peerId")
+                break // Exit loop instantly on first success!
+            }
+        }
+
+        // Clean up: cancel any slower transport that is still running
+        wifiJob.cancel()
+        bleJob.cancel()
+        resultChannel.close()
+
+        if (!finalSuccess) {
             Log.w(TAG, "All transports failed to send to $peerId")
         }
         
-        return@coroutineScope bleResult
+        return@coroutineScope finalSuccess
     }
 
     /**
@@ -148,13 +166,16 @@ class TransportManager(
         }
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────
-
     /**
      * Upgrades a peer's identity across all transports from a temporary ID (like MAC address)
      * to its actual mesh UUID.
      */
     fun upgradePeerId(oldId: String, newId: String) {
+        if (oldId == newId) return
+        
+        Log.d(TAG, "Registering alias: $oldId -> $newId")
+        deviceIdAliases[oldId] = newId
+        
         for (transport in transports) {
             transport.upgradePeerId(oldId, newId)
         }

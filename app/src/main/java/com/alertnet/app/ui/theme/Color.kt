@@ -16,8 +16,8 @@ val MeshGreenLight = Color(0xFF34D399)
 val MeshGreenDim = Color(0xFF065F46)
 
 // ─── Status Colors ──────────────────────────────────────────────
-val StatusSent = Color(0xFF60A5FA)       // Blue checkmark
-val StatusDelivered = Color(0xFF10B981)   // Green double-check
+val StatusTickGray = Color(0xFF94A3B8)    // Gray tick for Sent
+val StatusTickBlue = Color(0xFF3B82F6)    // Blue double-tick for Delivered
 val StatusFailed = Color(0xFFEF4444)      // Red X
 val StatusPending = Color(0xFF6B7280)     // Gray clock
 val StatusSending = Color(0xFFF59E0B)     // Amber spinner

@@ -32,27 +32,15 @@ class ChatViewModel(
 
     /**
      * Set the peer we're chatting with and start observing the conversation.
+     * This relies purely on the Room database as the single source of truth.
+     * Whenever a message status changes (e.g., from SENT to DELIVERED via ACK),
+     * Room emits a new list and the UI updates automatically.
      */
     fun openConversation(peerId: String) {
         currentPeerId = peerId
         viewModelScope.launch {
             meshManager.getConversation(peerId).collect { msgs ->
                 _messages.value = msgs
-            }
-        }
-
-        // Also observe ACK-driven delivery updates
-        viewModelScope.launch {
-            meshManager.ackTracker.deliveredMessages.collect { deliveredIds ->
-                // Trigger a re-emission by updating in-memory status
-                val updated = _messages.value.map { msg ->
-                    if (msg.id in deliveredIds && msg.status != DeliveryStatus.DELIVERED) {
-                        msg.copy(status = DeliveryStatus.DELIVERED)
-                    } else {
-                        msg
-                    }
-                }
-                _messages.value = updated
             }
         }
     }

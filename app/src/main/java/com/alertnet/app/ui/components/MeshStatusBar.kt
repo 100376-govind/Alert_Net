@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -50,7 +51,7 @@ fun MeshStatusBar(
 
             // Sent
             StatusChip(
-                icon = Icons.Default.Send,
+                icon = Icons.AutoMirrored.Filled.Send,
                 label = "${stats.messagesSent}",
                 sublabel = "sent",
                 color = MeshBlueBright
@@ -61,7 +62,7 @@ fun MeshStatusBar(
                 icon = Icons.Default.DoneAll,
                 label = "${stats.messagesDelivered}",
                 sublabel = "delivered",
-                color = StatusDelivered
+                color = StatusTickBlue
             )
 
             // Pending
