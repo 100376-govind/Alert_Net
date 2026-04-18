@@ -344,16 +344,42 @@ class WiFiDirectTransport(
                 peerIpMap[meshId] = senderIP
                 Log.d(TAG, "Peer $meshId registered at $senderIP")
 
-                val peer = MeshPeer(
-                    deviceId = meshId,
-                    displayName = "Peer-${meshId.take(8)}",
-                    transportType = TransportType.WIFI_DIRECT,
-                    ipAddress = senderIP,
-                    isConnected = true
-                )
+                // Find the existing peer entry
+                var existingPeer = peersMap.values.find { it.ipAddress == senderIP }
+                if (existingPeer == null && !isGroupOwner && senderIP == groupOwnerAddress) {
+                    // We are the client receiving the GO's handshake. 
+                    // Find our single connected GO peer.
+                    existingPeer = peersMap.values.find { it.isConnected && it.transportType == TransportType.WIFI_DIRECT }
+                }
+
+                val peer = if (existingPeer != null) {
+                    // Upgrade the existing MAC-based peer to UUID-based
+                    peersMap.remove(existingPeer.deviceId)
+                    existingPeer.copy(
+                        deviceId = meshId,
+                        ipAddress = senderIP
+                    )
+                } else {
+                    MeshPeer(
+                        deviceId = meshId,
+                        displayName = "Peer-${meshId.take(8)}",
+                        transportType = TransportType.WIFI_DIRECT,
+                        ipAddress = senderIP,
+                        isConnected = true
+                    )
+                }
+
                 peersMap[meshId] = peer
                 _discoveredPeers.value = peersMap.values.toList()
                 _connectionEvents.emit(ConnectionEvent.PeerConnected(peer))
+
+                // If we are the Group Owner, we must reply with our own MESH_ID
+                // so the client learns our UUID instead of just our MAC address.
+                if (isGroupOwner) {
+                    scope.launch {
+                        sendDeviceIdHandshake(senderIP)
+                    }
+                }
                 return
             }
 
@@ -438,7 +464,16 @@ class WiFiDirectTransport(
         }
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────
+    override fun upgradePeerId(oldId: String, newId: String) {
+        val existing = peersMap[oldId]
+        if (existing != null && oldId != newId) {
+            peersMap.remove(oldId)
+            val updated = existing.copy(deviceId = newId)
+            peersMap[newId] = updated
+            _discoveredPeers.value = peersMap.values.toList()
+            Log.d(TAG, "Upgraded WiFi Direct peer ID from $oldId to $newId")
+        }
+    }
 
     /**
      * Send device ID handshake to a newly connected peer.

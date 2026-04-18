@@ -26,6 +26,11 @@ interface Transport {
     /** Connection lifecycle events */
     val connectionEvents: SharedFlow<ConnectionEvent>
 
+    /**
+     * Upgrades a peer's identity from a temporary ID (like MAC address) to its actual mesh UUID.
+     */
+    fun upgradePeerId(oldId: String, newId: String) {}
+
     /** Start discovery and listening */
     suspend fun start()
 

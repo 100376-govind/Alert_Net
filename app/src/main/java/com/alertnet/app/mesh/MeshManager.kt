@@ -238,6 +238,18 @@ class MeshManager(
                     val messageJson = String(transportMsg.data, Charsets.UTF_8)
                     val message = json.decodeFromString<MeshMessage>(messageJson)
 
+                    // Passively learn the direct peer's UUID!
+                    // If hopCount is 0, the direct peer is the sender.
+                    // If hopCount > 0, the direct peer is the last one in the hopPath.
+                    val directPeerUuid = message.hopPath.lastOrNull() ?: message.senderId
+                    if (directPeerUuid != transportMsg.senderPeerId) {
+                        Log.d(TAG, "Passively learning peer UUID: upgrading ${transportMsg.senderPeerId} to $directPeerUuid")
+                        transportManager.upgradePeerId(
+                            oldId = transportMsg.senderPeerId,
+                            newId = directPeerUuid
+                        )
+                    }
+
                     processIncomingMessage(message)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to process incoming message", e)

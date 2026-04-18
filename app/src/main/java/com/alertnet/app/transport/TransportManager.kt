@@ -151,6 +151,16 @@ class TransportManager(
     // ─── Helpers ─────────────────────────────────────────────────
 
     /**
+     * Upgrades a peer's identity across all transports from a temporary ID (like MAC address)
+     * to its actual mesh UUID.
+     */
+    fun upgradePeerId(oldId: String, newId: String) {
+        for (transport in transports) {
+            transport.upgradePeerId(oldId, newId)
+        }
+    }
+
+    /**
      * Select the best transport for a given peer and payload size.
      */
     private fun getBestTransport(peer: MeshPeer?, payloadSize: Int): Transport {

@@ -479,7 +479,16 @@ class BleTransport(
         }
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────
+    override fun upgradePeerId(oldId: String, newId: String) {
+        val existing = peersMap[oldId]
+        if (existing != null && oldId != newId) {
+            peersMap.remove(oldId)
+            val updated = existing.copy(deviceId = newId)
+            peersMap[newId] = updated
+            scope.launch { updatePeersList() }
+            Log.d(TAG, "Upgraded BLE peer ID from $oldId to $newId")
+        }
+    }
 
     private fun updatePeersList() {
         _discoveredPeers.value = peersMap.values
