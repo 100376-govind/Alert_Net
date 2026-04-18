@@ -49,8 +49,8 @@ class WiFiDirectTransport(
     companion object {
         private const val TAG = "WiFiDirectTransport"
         const val PORT = 8888
-        private const val SOCKET_TIMEOUT_MS = 15_000
-        private const val DISCOVERY_INTERVAL_MS = 30_000L
+        private const val SOCKET_TIMEOUT_MS = 2_000
+        private const val DISCOVERY_INTERVAL_MS = 10_000L
         private const val MAX_PAYLOAD_SIZE = 20 * 1024 * 1024 // 20 MB
     }
 

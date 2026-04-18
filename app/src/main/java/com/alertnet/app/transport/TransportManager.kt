@@ -95,24 +95,40 @@ class TransportManager(
      * 3. If peer reachable via BLE only → use BLE
      * 4. Try both as fallback
      */
-    suspend fun sendToPeer(peerId: String, data: ByteArray): Boolean {
+    suspend fun sendToPeer(peerId: String, data: ByteArray): Boolean = coroutineScope {
         val peer = findPeer(peerId)
-        val bestTransport = getBestTransport(peer, data.size)
+        val isLargePayload = data.size > BleConstants.MAX_BLE_PAYLOAD
 
-        Log.d(TAG, "Sending ${data.size} bytes to $peerId via ${bestTransport.transportType}")
-
-        val success = bestTransport.sendMessage(peerId, data)
-
-        if (!success) {
-            // Fallback: try the other transport
-            val fallback = transports.firstOrNull { it != bestTransport }
-            if (fallback != null) {
-                Log.d(TAG, "Fallback: trying ${fallback.transportType}")
-                return fallback.sendMessage(peerId, data)
-            }
+        if (isLargePayload) {
+            Log.d(TAG, "Large payload (${data.size} bytes), sending via WiFi Direct")
+            return@coroutineScope wifiDirectTransport.sendMessage(peerId, data)
         }
 
-        return success
+        Log.d(TAG, "Sending ${data.size} bytes to $peerId concurrently via available transports")
+
+        // For small messages, race them concurrently! Fastest transport wins.
+        // This eliminates the 15-second sequential fallback latency.
+        val deferredWifi = async { wifiDirectTransport.sendMessage(peerId, data) }
+        val deferredBle = async { bleTransport.sendMessage(peerId, data) }
+
+        // Wait for WiFi Direct first (since it's much faster if connected)
+        val wifiResult = deferredWifi.await()
+        if (wifiResult) {
+            // WiFi succeeded, no need to wait for BLE (cancel to save battery/overhead)
+            deferredBle.cancel()
+            Log.d(TAG, "Sent successfully via WiFi Direct")
+            return@coroutineScope true
+        }
+
+        // If WiFi failed (e.g. IP not resolved), wait for BLE
+        val bleResult = deferredBle.await()
+        if (bleResult) {
+            Log.d(TAG, "Sent successfully via BLE")
+        } else {
+            Log.w(TAG, "All transports failed to send to $peerId")
+        }
+        
+        return@coroutineScope bleResult
     }
 
     /**

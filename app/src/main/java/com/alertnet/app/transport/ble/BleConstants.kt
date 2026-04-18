@@ -36,10 +36,10 @@ object BleConstants {
     const val REQUESTED_MTU = 512
 
     /** BLE scan duration in milliseconds */
-    const val SCAN_DURATION_MS = 15_000L
+    const val SCAN_DURATION_MS = 30_000L
 
     /** BLE scan interval (idle between scans) in milliseconds */
-    const val SCAN_INTERVAL_MS = 45_000L
+    const val SCAN_INTERVAL_MS = 5_000L
 
     /** Maximum payload size for BLE transport (after MTU overhead) */
     const val MAX_BLE_PAYLOAD = 500

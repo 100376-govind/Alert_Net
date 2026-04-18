@@ -457,7 +457,7 @@ class BleTransport(
                     }
                 })
 
-                withTimeoutOrNull(10_000) { result.await() } ?: false
+                withTimeoutOrNull(3_000) { result.await() } ?: false
             } catch (e: Exception) {
                 Log.e(TAG, "BLE send failed", e)
                 false
