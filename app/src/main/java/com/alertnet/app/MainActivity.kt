@@ -23,7 +23,7 @@ import com.alertnet.app.db.DatabaseProvider
 import com.alertnet.app.db.SeenMessageStore
 
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     lateinit var receiver: BroadcastReceiver
     lateinit var intentFilter: IntentFilter
@@ -49,14 +49,7 @@ class MainActivity : Activity() {
         MessageQueue.rehydrate()
         SeenMessageStore.rehydrate()
 
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.NEARBY_WIFI_DEVICES
-            ),
-            100
-        )
+        checkPermissions()
 
         manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         channel = manager.initialize(this, mainLooper, null)
@@ -88,12 +81,9 @@ class MainActivity : Activity() {
 
             Toast.makeText(this, "Searching...", Toast.LENGTH_SHORT).show()
 
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
+            if (!hasPermissions()) {
                 Toast.makeText(this, "Permission missing", Toast.LENGTH_SHORT).show()
+                checkPermissions()
                 return@setOnClickListener
             }
 
@@ -113,11 +103,7 @@ class MainActivity : Activity() {
         val config = WifiP2pConfig()
         config.deviceAddress = device.deviceAddress
 
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!hasPermissions()) {
             return
         }
 
@@ -168,34 +154,35 @@ class MainActivity : Activity() {
         adapter.notifyDataSetChanged()
     }
 
-    // 🔐 Check Permissions
-    private fun checkPermissions() {
+    fun checkPermissions() {
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION
         )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
             permissions.add(Manifest.permission.BLUETOOTH_SCAN)
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        
+        if (Build.VERSION.SDK_INT >= 33) { // TIRAMISU
+            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
 
         ActivityCompat.requestPermissions(this, permissions.toTypedArray(), PERMISSION_CODE)
     }
 
     // ✅ Verify Permissions
-    private fun hasPermissions(): Boolean {
+    fun hasPermissions(): Boolean {
         val location = ActivityCompat.checkSelfPermission(
             this,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        return if (Build.VERSION.SDK_INT >= 33) {
             val wifi = ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.NEARBY_WIFI_DEVICES
             ) == PackageManager.PERMISSION_GRANTED
-
             location && wifi
         } else {
             location

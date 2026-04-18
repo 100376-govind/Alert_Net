@@ -1,6 +1,6 @@
 <resources>
 
-    <style name="Theme.AlertNet" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.AlertNet" parent="Theme.MaterialComponents.Light.NoActionBar">
     </style>
 
 </resources>

@@ -26,11 +26,7 @@ class WiFiDirectReceiver(
             // 🔹 When peers change (device discovery)
             WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
 
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
+                if (!activity.hasPermissions()) {
                     return
                 }
 

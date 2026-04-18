@@ -66,3 +66,17 @@ Desktop.ini
 
 # Room schema exports (generated)
 app/schemas/
+
+# NDK
+obj/
+
+# IntelliJ
+*.iws
+
+# Navigation Editor temp files
+.navigation/
+
+# Secrets and properties
+secrets.properties
+local.defaults.properties
+crashlytics.properties
